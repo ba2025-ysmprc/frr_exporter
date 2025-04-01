@@ -1,0 +1,23 @@
+{
+    "default": {
+      "vrfName": "default",
+      "neighbors": {
+        "10.0.0.2": [
+          {
+            "ifaceName": "eth0",
+            "areaId": "0.0.0.0",
+            "nbrState": "Full/DR",
+            "ifaceAddress": "10.0.0.1"
+          }
+        ],
+        "10.0.1.3": [
+          {
+            "ifaceName": "eth1",
+            "areaId": "0.0.0.1",
+            "nbrState": "2Way/DROther",
+            "ifaceAddress": "10.0.1.1"
+          }
+        ]
+      }
+    }
+  }

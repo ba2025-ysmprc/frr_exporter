@@ -1,0 +1,26 @@
+{
+    "default": {
+      "vrfName": "default",
+      "10.0.0.0/24": {
+        "routeType": "N",
+        "cost": 10,
+        "area": "0.0.0.0",
+        "nexthops": [
+          {
+            "directlyAttachedTo": "eth0"
+          }
+        ]
+      },
+      "10.1.0.0/24": {
+        "routeType": "E",
+        "cost": 20,
+        "area": "0.0.0.0",
+        "nexthops": [
+          {
+            "ip": "10.0.0.2",
+            "via": "eth0"
+          }
+        ]
+      }
+    }
+  }

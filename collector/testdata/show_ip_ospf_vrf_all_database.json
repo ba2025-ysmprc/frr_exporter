@@ -1,0 +1,37 @@
+{
+    "default": {
+      "vrfName": "default",
+      "areas": {
+        "0.0.0.0": {
+          "routerLinkStates": [
+            {
+              "lsId": "1.1.1.1",
+              "advertisedRouter": "1.1.1.1",
+              "sequenceNumber": "80000001",
+              "checksum": "abcd"
+            }
+          ],
+          "networkLinkStates": [
+            {
+              "lsId": "10.0.0.1",
+              "advertisedRouter": "1.1.1.1"
+            }
+          ],
+          "summaryLinkStates": [
+            {
+              "lsId": "2.2.2.2",
+              "advertisedRouter": "1.1.1.1",
+              "summaryAddress": "10.1.0.0/24"
+            }
+          ]
+        }
+      },
+      "asExternalLinkStates": [
+        {
+          "lsId": "3.3.3.3",
+          "advertisedRouter": "1.1.1.1",
+          "route": "10.2.0.0/24"
+        }
+      ]
+    }
+  }
