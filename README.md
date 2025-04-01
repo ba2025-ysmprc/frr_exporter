@@ -117,7 +117,7 @@ To disable a default collector, use the `--no-collector.$name` flag, or
 Name | Description
 --- | ---
 BGP | Per VRF and address family (currently support unicast only) BGP metrics:<br> - RIB entries<br> - RIB memory usage<br> - Configured peer count<br> - Peer memory usage<br> - Configure peer group count<br> - Peer group memory usage<br> - Peer messages in<br> - Peer messages out<br> - Peer received prefixes<br> - Peer advertised prefixes<br> - Peer state (established/down)<br> - Peer uptime
-OSPFv4 | Per VRF OSPF metrics:<br> - Neighbors<br> - Neighbor adjacencies
+OSPFv4 | Per VRF OSPF metrics:<br> - Neighbor states and adjacencies<br> - Route changes (added/removed)<br> - Route counts by type (N/E)<br> - LSA database statistics<br> - Detailed LSA information
 BFD | BFD Peer metrics:<br> - Count of total number of peers<br> - BFD Peer State (up/down)<br> - BFD Peer Uptime in seconds
 
 ### Disabled by Default
@@ -228,6 +228,23 @@ via the `--frr.vtysh` flag for the following reasons:
 `show ip ospf vrf all interface json` returns the concatenated JSON from each OSPF instance. 
 * Vtysh does not support `vrf` and `instance` in the same commend. For example,\
 `show ip ospf 1 vrf all interface json` is an invalid command.
+
+### OSPF: Detailed Metrics
+Enable comprehensive OSPF monitoring with these metrics:
+
+**Route Tracking**:
+- `frr_ospf_route_changes_total{change_type="added|removed", vrf="<name>", area="<id>"}`
+- `frr_ospf_route_count_total{route_type="N|E", vrf="<name>", area="<id>"}`
+
+**LSA Monitoring** (enabled by default):
+- `frr_ospf_lsa_count_total{lsa_type="router|network|summary|external"}`
+- `frr_ospf_lsa_detail` (per-LSA details)
+
+Configure with:
+```sh
+# Disable detailed LSA metrics if high cardinality is a concern
+--no-collector.ospf.export-details
+```
 
 ## Grafana Dashboards
 
