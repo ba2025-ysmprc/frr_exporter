@@ -14,9 +14,17 @@ import (
 )
 
 var (
-	ospfSubsystem     = "ospf"
-	frrOSPFInstances  = kingpin.Flag("collector.ospf.instances", "Comma-separated list of instance IDs if using multiple OSPF instances").Default("").String()
-	ospfExportDetails = kingpin.Flag("collector.ospf.export-details", "Export detailed OSPF LSA and route information").Default("true").Bool()
+	ospfSubsystem = "ospf"
+
+	ospfInstances            = kingpin.Flag("collector.ospf.instances", "Comma-separated list of instance IDs if using multiple OSPF instances").Default("").String()
+	ospfInterfaceMetrics     = kingpin.Flag("collector.ospf.interfaces", "Enable OSPF interface metrics (default: disabled).").Default("True").Bool()
+	ospfNeighborMetrics      = kingpin.Flag("collector.ospf.neighbors", "Enable OSPF neighbor metrics (default: disabled).").Default("True").Bool()
+	ospfNeighborStateMetrics = kingpin.Flag("collector.ospf.neighbor-states", "Enable detailed OSPF neighbor state metrics (default: disabled).").Default("True").Bool()
+	ospfLSACountMetrics      = kingpin.Flag("collector.ospf.lsa-count", "Enable OSPF LSA count metrics (default: disabled).").Default("True").Bool()
+	ospfLSADetailMetrics     = kingpin.Flag("collector.ospf.lsa-detail", "Enable detailed OSPF LSA information metrics (default: disabled).").Default("True").Bool()
+	ospfRouteCountMetrics    = kingpin.Flag("collector.ospf.route-count", "Enable OSPF route count metrics (default: disabled).").Default("True").Bool()
+	ospfRouteDetailMetrics   = kingpin.Flag("collector.ospf.route-detail", "Enable detailed OSPF route information metrics (default: disabled).").Default("True").Bool()
+	ospfRouteChangeMetrics   = kingpin.Flag("collector.ospf.route-changes", "Enable OSPF route change tracking metrics (default: disabled).").Default("True").Bool()
 )
 
 func init() {
@@ -71,7 +79,6 @@ type ospfIface struct {
 	TimerPassiveIface bool   `json:"timerPassiveInterface"`
 }
 
-// Response structs that match FRR's JSON output
 type OSPFNeighborResponse struct {
 	Default struct {
 		VRFName   string `json:"vrfName"`
@@ -125,11 +132,11 @@ type OSPFRouteResponse struct {
 
 func NewOSPFCollector(logger *slog.Logger) (Collector, error) {
 	var instanceIDs []int
-	if len(*frrOSPFInstances) > 0 {
+	if len(*ospfInstances) > 0 {
 		if *vtyshEnable {
 			return nil, fmt.Errorf("cannot use --frr.vtysh with --collector.ospf.instances")
 		}
-		instances := strings.Split(*frrOSPFInstances, ",")
+		instances := strings.Split(*ospfInstances, ",")
 		for _, id := range instances {
 			i, err := strconv.Atoi(id)
 			if err != nil {
@@ -143,13 +150,14 @@ func NewOSPFCollector(logger *slog.Logger) (Collector, error) {
 		logger:       logger,
 		instanceIDs:  instanceIDs,
 		descriptions: getOSPFDesc(),
+		lastRoutes:   []OSFRoute{},
 		lastChange:   time.Now(),
 	}, nil
 }
 
 func getOSPFDesc() map[string]*prometheus.Desc {
 	baseLabels := []string{"vrf", "iface", "area"}
-	if len(*frrOSPFInstances) > 0 {
+	if len(*ospfInstances) > 0 {
 		baseLabels = append(baseLabels, "instance")
 	}
 
@@ -198,9 +206,9 @@ func getOSPFDesc() map[string]*prometheus.Desc {
 		),
 		"route_changes": colPromDesc(
 			ospfSubsystem,
-			"route_changes_total",
-			"Route changes since last scrape",
-			[]string{"vrf", "area", "change_type"},
+			"route_changes",
+			"Route changes since last scrape with details",
+			[]string{"vrf", "area", "change_type", "prefix", "route_type", "next_hop", "interface"},
 		),
 	}
 }
@@ -240,6 +248,9 @@ func (c *ospfCollector) Update(ch chan<- prometheus.Metric) error {
 }
 
 func (c *ospfCollector) collectInterfaceMetrics(ch chan<- prometheus.Metric) error {
+	if !*ospfInterfaceMetrics {
+		return nil
+	}
 	cmd := "show ip ospf vrf all interface json"
 
 	if len(c.instanceIDs) > 0 {
@@ -317,7 +328,7 @@ func (c *ospfCollector) ospfInterfaceMetrics(ch chan<- prometheus.Metric, iface 
 	metricLabels := make([]string, len(labels))
 	copy(metricLabels, labels)
 
-	if instanceID != 0 && len(*frrOSPFInstances) > 0 {
+	if instanceID != 0 && len(*ospfInstances) > 0 {
 		metricLabels = append(metricLabels, strconv.Itoa(instanceID))
 	}
 	newGauge(ch, c.descriptions["ospfIfaceNeigh"], float64(iface.NbrCount), metricLabels...)
@@ -325,6 +336,9 @@ func (c *ospfCollector) ospfInterfaceMetrics(ch chan<- prometheus.Metric, iface 
 }
 
 func (c *ospfCollector) collectNeighborMetrics(ch chan<- prometheus.Metric) error {
+	if !*ospfNeighborMetrics && !*ospfNeighborStateMetrics {
+		return nil
+	}
 	cmd := "show ip ospf vrf all neighbor detail json"
 	output, err := executeOSPFCommand(cmd)
 	if err != nil {
@@ -337,20 +351,25 @@ func (c *ospfCollector) collectNeighborMetrics(ch chan<- prometheus.Metric) erro
 		return fmt.Errorf("parsing neighbor JSON: %w", err)
 	}
 
-	for neighborID, neighbors := range response.Default.Neighbors {
-		for _, n := range neighbors {
-			stateValue := mapOSPFStateToValue(n.NbrState)
-			labels := []string{"default", n.IfaceName, n.AreaID, neighborID, n.IPAddress}
-			if len(*frrOSPFInstances) > 0 {
-				labels = append(labels, "0")
+	if *ospfNeighborStateMetrics {
+		for neighborID, neighbors := range response.Default.Neighbors {
+			for _, n := range neighbors {
+				stateValue := mapOSPFStateToValue(n.NbrState)
+				labels := []string{"default", n.IfaceName, n.AreaID, neighborID, n.IPAddress}
+				if len(*ospfInstances) > 0 {
+					labels = append(labels, "0")
+				}
+				newGauge(ch, c.descriptions["neighbor_state"], stateValue, labels...)
 			}
-			newGauge(ch, c.descriptions["neighbor_state"], stateValue, labels...)
 		}
 	}
 	return nil
 }
 
 func (c *ospfCollector) collectLSAMetrics(ch chan<- prometheus.Metric) error {
+	if !*ospfLSACountMetrics && !*ospfLSADetailMetrics {
+		return nil
+	}
 	cmd := "show ip ospf vrf all database json"
 	output, err := executeOSPFCommand(cmd)
 	if err != nil {
@@ -363,47 +382,65 @@ func (c *ospfCollector) collectLSAMetrics(ch chan<- prometheus.Metric) error {
 		return fmt.Errorf("parsing LSA JSON: %w", err)
 	}
 
-	typeCount := make(map[string]int)
-	for _, area := range response.Default.Areas {
+	// Create a map to collect LSA counts per area
+	typeCountByArea := make(map[string]map[string]int)
+
+	for areaID, area := range response.Default.Areas {
+		if _, exists := typeCountByArea[areaID]; !exists {
+			typeCountByArea[areaID] = make(map[string]int)
+		}
+
 		for _, lsa := range area.RouterLinkStates {
-			typeCount["router"]++
-			if *ospfExportDetails {
-				labels := []string{"default", lsa.LSID[:strings.Index(lsa.LSID, ".")], "router", lsa.LSID, lsa.AdvertisedRouter, lsa.SequenceNumber}
+			typeCountByArea[areaID]["router"]++
+			if *ospfLSADetailMetrics {
+				labels := []string{"default", areaID, "router", lsa.LSID, lsa.AdvertisedRouter, lsa.SequenceNumber}
 				newGauge(ch, c.descriptions["lsa_detail"], 1, labels...)
 			}
 		}
 		for _, lsa := range area.NetworkLinkStates {
-			typeCount["network"]++
-			if *ospfExportDetails {
-				labels := []string{"default", lsa.LSID[:strings.Index(lsa.LSID, ".")], "network", lsa.LSID, lsa.AdvertisedRouter, "0"}
+			typeCountByArea[areaID]["network"]++
+			if *ospfLSADetailMetrics {
+				labels := []string{"default", areaID, "network", lsa.LSID, lsa.AdvertisedRouter, "0"}
 				newGauge(ch, c.descriptions["lsa_detail"], 1, labels...)
 			}
 		}
 		for _, lsa := range area.SummaryLinkStates {
-			typeCount["summary"]++
-			if *ospfExportDetails {
-				labels := []string{"default", lsa.LSID[:strings.Index(lsa.LSID, ".")], "summary", lsa.LSID, lsa.AdvertisedRouter, "0"}
+			typeCountByArea[areaID]["summary"]++
+			if *ospfLSADetailMetrics {
+				labels := []string{"default", areaID, "summary", lsa.LSID, lsa.AdvertisedRouter, "0"}
 				newGauge(ch, c.descriptions["lsa_detail"], 1, labels...)
 			}
 		}
 	}
+
+	if _, exists := typeCountByArea["0.0.0.0"]; !exists {
+		typeCountByArea["0.0.0.0"] = make(map[string]int)
+	}
+
 	for _, lsa := range response.Default.ASExternalLinkStates {
-		typeCount["external"]++
-		if *ospfExportDetails {
+		typeCountByArea["0.0.0.0"]["external"]++
+		if *ospfLSADetailMetrics {
 			labels := []string{"default", "0.0.0.0", "external", lsa.LSID, lsa.AdvertisedRouter, "0"}
 			newGauge(ch, c.descriptions["lsa_detail"], 1, labels...)
 		}
 	}
 
-	for lsaType, count := range typeCount {
-		labels := []string{"default", "0.0.0.0", lsaType}
-		newGauge(ch, c.descriptions["lsa_count"], float64(count), labels...)
+	if *ospfLSACountMetrics {
+		for areaID, typeCounts := range typeCountByArea {
+			for lsaType, count := range typeCounts {
+				labels := []string{"default", areaID, lsaType}
+				newGauge(ch, c.descriptions["lsa_count"], float64(count), labels...)
+			}
+		}
 	}
 
 	return nil
 }
 
 func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
+	if !*ospfRouteCountMetrics && !*ospfRouteDetailMetrics && !*ospfRouteChangeMetrics {
+		return nil
+	}
 	cmd := "show ip ospf vrf all route json"
 	output, err := executeOSPFCommand(cmd)
 	if err != nil {
@@ -426,7 +463,7 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 		vrfName = "default"
 	}
 
-	typeCount := make(map[string]int)
+	typeCountByArea := make(map[string]map[string]int)
 	var currentRoutes []OSFRoute
 
 	for key, value := range response.Default {
@@ -441,14 +478,21 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 
 		routeType, _ := routeDetails["routeType"].(string)
 		routeType = strings.TrimSpace(routeType)
-		typeCount[routeType]++
+
+		area, _ := routeDetails["area"].(string)
+		if area == "" {
+			area = "0.0.0.0"
+		}
+
+		if _, exists := typeCountByArea[area]; !exists {
+			typeCountByArea[area] = make(map[string]int)
+		}
+		typeCountByArea[area][routeType]++
 
 		cost := 0
 		if costVal, ok := routeDetails["cost"].(float64); ok {
 			cost = int(costVal)
 		}
-
-		area, _ := routeDetails["area"].(string)
 
 		tag := 0
 		if tagVal, ok := routeDetails["tag"].(float64); ok {
@@ -466,6 +510,9 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 			if nh, ok := nexthops[0].(map[string]interface{}); ok {
 				nextHop, _ = nh["ip"].(string)
 				nextHop = strings.TrimSpace(nextHop)
+				if nextHop == "" {
+					nextHop = "direct"
+				}
 
 				if directlyAttached, ok := nh["directlyAttachedTo"].(string); ok && directlyAttached != "" {
 					iface = directlyAttached
@@ -487,7 +534,7 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 			Type2Cost: type2Cost,
 		})
 
-		if *ospfExportDetails {
+		if *ospfRouteDetailMetrics {
 			labels := []string{
 				vrfName,
 				area,
@@ -500,39 +547,74 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	for routeType, count := range typeCount {
-		labels := []string{vrfName, "0.0.0.0", routeType}
-		newGauge(ch, c.descriptions["route_count"], float64(count), labels...)
+	if *ospfRouteCountMetrics {
+		for area, typeCounts := range typeCountByArea {
+			for routeType, count := range typeCounts {
+				labels := []string{vrfName, area, routeType}
+				newGauge(ch, c.descriptions["route_count"], float64(count), labels...)
+			}
+		}
 	}
 
-	var added, removed int
-	if c.lastRoutes != nil {
-		added, removed = diffRoutes(c.lastRoutes, currentRoutes)
-		newCounter(ch, c.descriptions["route_changes"], float64(added), vrfName, "0.0.0.0", "added")
-		newCounter(ch, c.descriptions["route_changes"], float64(removed), vrfName, "0.0.0.0", "removed")
+	if *ospfRouteChangeMetrics {
+		added, removed := diffRoutes(c.lastRoutes, currentRoutes)
+
+		c.logger.Debug("Route changes detected", "added", len(added), "removed", len(removed))
+
+		for _, route := range added {
+			labels := []string{
+				route.VRF,
+				route.Area,
+				"added",
+				route.Prefix,
+				route.Type,
+				route.NextHop,
+				route.Interface,
+			}
+			newGauge(ch, c.descriptions["route_changes"], 1, labels...)
+		}
+
+		for _, route := range removed {
+			labels := []string{
+				route.VRF,
+				route.Area,
+				"removed",
+				route.Prefix,
+				route.Type,
+				route.NextHop,
+				route.Interface,
+			}
+			newGauge(ch, c.descriptions["route_changes"], 1, labels...)
+		}
 	}
 
 	c.lastRoutes = currentRoutes
 	return nil
 }
 
-func diffRoutes(prev, current []OSFRoute) (added, removed int) {
+func diffRoutes(prev, current []OSFRoute) (added []OSFRoute, removed []OSFRoute) {
+	key := func(r OSFRoute) string {
+		return fmt.Sprintf("%s-%s-%s-%s", r.Prefix, r.Type, r.NextHop, r.Interface)
+	}
+
 	prevMap := make(map[string]OSFRoute)
 	for _, r := range prev {
-		prevMap[r.Prefix] = r
+		prevMap[key(r)] = r
 	}
 
 	currentMap := make(map[string]OSFRoute)
 	for _, r := range current {
-		currentMap[r.Prefix] = r
-		if _, exists := prevMap[r.Prefix]; !exists {
-			added++
+		k := key(r)
+		currentMap[k] = r
+		if _, exists := prevMap[k]; !exists {
+			added = append(added, r)
 		}
 	}
 
-	for prefix := range prevMap {
-		if _, exists := currentMap[prefix]; !exists {
-			removed++
+	for _, r := range prev {
+		k := key(r)
+		if _, exists := currentMap[k]; !exists {
+			removed = append(removed, r)
 		}
 	}
 
@@ -540,7 +622,6 @@ func diffRoutes(prev, current []OSFRoute) (added, removed int) {
 }
 
 func mapOSPFStateToValue(state string) float64 {
-	// Extract just the state part (before / if present)
 	baseState := strings.Split(state, "/")[0]
 	switch strings.ToLower(baseState) {
 	case "full":
