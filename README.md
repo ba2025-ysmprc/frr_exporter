@@ -39,6 +39,22 @@ Flags:
                                  This is an option for older versions of FRR that don't have PfxSent field (default: disabled).
       --[no-]collector.bgp.accepted-filtered-prefixes
                                  Enable retrieval of accepted and filtered BGP prefix counts (default: disabled).
+      --[no-]collector.ospf.interfaces
+                                 Enable OSPF interface metrics (default: disabled).
+      --[no-]collector.ospf.neighbors
+                                 Enable OSPF neighbor metrics (default: disabled).
+      --[no-]collector.ospf.neighbor-states
+                                 Enable detailed OSPF neighbor state metrics (default: disabled).
+      --[no-]collector.ospf.lsa-count
+                                 Enable OSPF LSA count metrics (default: disabled).
+      --[no-]collector.ospf.lsa-detail
+                                 Enable detailed OSPF LSA information metrics (default: disabled).
+      --[no-]collector.ospf.route-count
+                                 Enable OSPF route count metrics (default: disabled).
+      --[no-]collector.ospf.route-detail
+                                 Enable detailed OSPF route information metrics (default: disabled).
+      --[no-]collector.ospf.route-changes
+                                 Enable OSPF route change tracking metrics (default: disabled).
       --frr.socket.dir-path="/var/run/frr"
                                  Path of of the localstatedir containing each daemon's Unix socket.
       --frr.socket.timeout=20s   Timeout when connecting to the FRR daemon Unix sockets
@@ -117,7 +133,7 @@ To disable a default collector, use the `--no-collector.$name` flag, or
 Name | Description
 --- | ---
 BGP | Per VRF and address family (currently support unicast only) BGP metrics:<br> - RIB entries<br> - RIB memory usage<br> - Configured peer count<br> - Peer memory usage<br> - Configure peer group count<br> - Peer group memory usage<br> - Peer messages in<br> - Peer messages out<br> - Peer received prefixes<br> - Peer advertised prefixes<br> - Peer state (established/down)<br> - Peer uptime
-OSPFv4 | Per VRF OSPF metrics:<br> - Neighbor states and adjacencies<br> - Route changes (added/removed)<br> - Route counts by type (N/E)<br> - LSA database statistics<br> - Detailed LSA information
+OSPFv4 | Per VRF OSPF metrics:<br> - Interface statistics (neighbors and adjacencies)<br> - Neighbor states<br> - Route changes (added/removed)<br> - Route counts by type<br> - Route details including cost metrics<br> - LSA database statistics<br> - Detailed LSA information
 BFD | BFD Peer metrics:<br> - Count of total number of peers<br> - BFD Peer State (up/down)<br> - BFD Peer Uptime in seconds
 
 ### Disabled by Default
@@ -230,20 +246,40 @@ via the `--frr.vtysh` flag for the following reasons:
 `show ip ospf 1 vrf all interface json` is an invalid command.
 
 ### OSPF: Detailed Metrics
-Enable comprehensive OSPF monitoring with these metrics:
+Enable comprehensive OSPF monitoring with these additional metrics:
 
-**Route Tracking**:
-- `frr_ospf_route_changes_total{change_type="added|removed", vrf="<name>", area="<id>"}`
-- `frr_ospf_route_count_total{route_type="N|E", vrf="<name>", area="<id>"}`
+**Interface Metrics** (disabled by default):
+- `frr_ospf_neighbors_total` - Number of neighbors detected
+- `frr_ospf_neighbor_adjacencies_total` - Number of neighbor adjacencies formed
 
-**LSA Monitoring** (enabled by default):
+**Neighbor Metrics** (disabled by default):
+- `frr_ospf_neighbor_state` - State of each OSPF neighbor (1=Full, 2=Down, etc.)
+
+**Route Metrics** (disabled by default):
+- `frr_ospf_route_count_total{route_type="N|E", vrf="<name>", area="<id>"}` - Count of routes by type
+- `frr_ospf_route_detail` - Detailed route information with cost metrics
+- `frr_ospf_route_changes{change_type="added|removed", vrf="<name>", area="<id>"}` - Route change tracking
+
+**LSA Metrics** (disabled by default):
 - `frr_ospf_lsa_count_total{lsa_type="router|network|summary|external"}`
-- `frr_ospf_lsa_detail` (per-LSA details)
+- `frr_ospf_lsa_detail` - Per-LSA details including age, sequence, and checksum
 
 Configure with:
 ```sh
-# Disable detailed LSA metrics if high cardinality is a concern
---no-collector.ospf.export-details
+# Enable interface metrics
+--collector.ospf.interfaces
+
+# Enable neighbor state metrics
+--collector.ospf.neighbor-states
+
+# Enable route tracking metrics
+--collector.ospf.route-changes
+--collector.ospf.route-count
+--collector.ospf.route-detail
+
+# Enable LSA metrics
+--collector.ospf.lsa-count
+--collector.ospf.lsa-detail
 ```
 
 ## Grafana Dashboards

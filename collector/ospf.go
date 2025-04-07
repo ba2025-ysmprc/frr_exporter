@@ -17,14 +17,14 @@ var (
 	ospfSubsystem = "ospf"
 
 	ospfInstances            = kingpin.Flag("collector.ospf.instances", "Comma-separated list of instance IDs if using multiple OSPF instances").Default("").String()
-	ospfInterfaceMetrics     = kingpin.Flag("collector.ospf.interfaces", "Enable OSPF interface metrics (default: disabled).").Default("True").Bool()
-	ospfNeighborMetrics      = kingpin.Flag("collector.ospf.neighbors", "Enable OSPF neighbor metrics (default: disabled).").Default("True").Bool()
-	ospfNeighborStateMetrics = kingpin.Flag("collector.ospf.neighbor-states", "Enable detailed OSPF neighbor state metrics (default: disabled).").Default("True").Bool()
-	ospfLSACountMetrics      = kingpin.Flag("collector.ospf.lsa-count", "Enable OSPF LSA count metrics (default: disabled).").Default("True").Bool()
-	ospfLSADetailMetrics     = kingpin.Flag("collector.ospf.lsa-detail", "Enable detailed OSPF LSA information metrics (default: disabled).").Default("True").Bool()
-	ospfRouteCountMetrics    = kingpin.Flag("collector.ospf.route-count", "Enable OSPF route count metrics (default: disabled).").Default("True").Bool()
-	ospfRouteDetailMetrics   = kingpin.Flag("collector.ospf.route-detail", "Enable detailed OSPF route information metrics (default: disabled).").Default("True").Bool()
-	ospfRouteChangeMetrics   = kingpin.Flag("collector.ospf.route-changes", "Enable OSPF route change tracking metrics (default: disabled).").Default("True").Bool()
+	ospfInterfaceMetrics     = kingpin.Flag("collector.ospf.interfaces", "Enable OSPF interface metrics (default: disabled).").Default("False").Bool()
+	ospfNeighborMetrics      = kingpin.Flag("collector.ospf.neighbors", "Enable OSPF neighbor metrics (default: disabled).").Default("False").Bool()
+	ospfNeighborStateMetrics = kingpin.Flag("collector.ospf.neighbor-states", "Enable detailed OSPF neighbor state metrics (default: disabled).").Default("False").Bool()
+	ospfLSACountMetrics      = kingpin.Flag("collector.ospf.lsa-count", "Enable OSPF LSA count metrics (default: disabled).").Default("False").Bool()
+	ospfLSADetailMetrics     = kingpin.Flag("collector.ospf.lsa-detail", "Enable detailed OSPF LSA information metrics (default: disabled).").Default("False").Bool()
+	ospfRouteCountMetrics    = kingpin.Flag("collector.ospf.route-count", "Enable OSPF route count metrics (default: disabled).").Default("False").Bool()
+	ospfRouteDetailMetrics   = kingpin.Flag("collector.ospf.route-detail", "Enable detailed OSPF route information metrics (default: disabled).").Default("False").Bool()
+	ospfRouteChangeMetrics   = kingpin.Flag("collector.ospf.route-changes", "Enable OSPF route change tracking metrics (default: disabled).").Default("False").Bool()
 )
 
 func init() {
