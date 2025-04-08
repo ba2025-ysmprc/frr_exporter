@@ -25,6 +25,7 @@ var (
 	ospfRouteCountMetrics    = kingpin.Flag("collector.ospf.route-count", "Enable OSPF route count metrics (default: disabled).").Default("False").Bool()
 	ospfRouteDetailMetrics   = kingpin.Flag("collector.ospf.route-detail", "Enable detailed OSPF route information metrics (default: disabled).").Default("False").Bool()
 	ospfRouteChangeMetrics   = kingpin.Flag("collector.ospf.route-changes", "Enable OSPF route change tracking metrics (default: disabled).").Default("False").Bool()
+	ospfHasRouteChangeMetric = kingpin.Flag("collector.ospf.has-route-changes", "Enable OSPF has-route-changes indicator metric (default: disabled).").Default("False").Bool()
 )
 
 func init() {
@@ -210,6 +211,12 @@ func getOSPFDesc() map[string]*prometheus.Desc {
 			"Route changes since last scrape with details",
 			[]string{"vrf", "area", "change_type", "prefix", "route_type", "next_hop", "interface"},
 		),
+		"has_route_changes": colPromDesc(
+			ospfSubsystem,
+			"has_route_changes",
+			"Boolean indicating if there were any route changes since last scrape",
+			[]string{"vrf"},
+		),
 	}
 }
 
@@ -382,7 +389,7 @@ func (c *ospfCollector) collectLSAMetrics(ch chan<- prometheus.Metric) error {
 		return fmt.Errorf("parsing LSA JSON: %w", err)
 	}
 
-	// Create a map to collect LSA counts per area
+	// Map for LSA counts per area
 	typeCountByArea := make(map[string]map[string]int)
 
 	for areaID, area := range response.Default.Areas {
@@ -438,9 +445,11 @@ func (c *ospfCollector) collectLSAMetrics(ch chan<- prometheus.Metric) error {
 }
 
 func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
-	if !*ospfRouteCountMetrics && !*ospfRouteDetailMetrics && !*ospfRouteChangeMetrics {
+	needsRouteProcessing := *ospfRouteCountMetrics || *ospfRouteDetailMetrics || *ospfRouteChangeMetrics || *ospfHasRouteChangeMetric
+	if !needsRouteProcessing {
 		return nil
 	}
+
 	cmd := "show ip ospf vrf all route json"
 	output, err := executeOSPFCommand(cmd)
 	if err != nil {
@@ -556,10 +565,19 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 		}
 	}
 
-	if *ospfRouteChangeMetrics {
-		added, removed := diffRoutes(c.lastRoutes, currentRoutes)
+	added, removed := diffRoutes(c.lastRoutes, currentRoutes)
+	hasChanges := len(added) > 0 || len(removed) > 0
 
-		c.logger.Debug("Route changes detected", "added", len(added), "removed", len(removed))
+	if *ospfHasRouteChangeMetric {
+		hasChangesValue := 0.0
+		if hasChanges {
+			hasChangesValue = 1.0
+			c.lastChange = time.Now()
+		}
+		newGauge(ch, c.descriptions["has_route_changes"], hasChangesValue, vrfName)
+	}
+
+	if *ospfRouteChangeMetrics {
 
 		for _, route := range added {
 			labels := []string{
@@ -586,8 +604,27 @@ func (c *ospfCollector) collectRouteMetrics(ch chan<- prometheus.Metric) error {
 			}
 			newGauge(ch, c.descriptions["route_changes"], 1, labels...)
 		}
+
+		// If there were no changes, export a placeholder route_changes metric with 0 value
+		// This ensures the metric is always present even when there are no changes
+		if !hasChanges && len(currentRoutes) > 0 {
+			// VRF and Area from the first route as a placeholder
+			placeholderRoute := currentRoutes[0]
+			labels := []string{
+				placeholderRoute.VRF,
+				placeholderRoute.Area,
+				"unchanged",
+				"none",
+				"none",
+				"none",
+				"none",
+			}
+			newGauge(ch, c.descriptions["route_changes"], 0, labels...)
+		}
 	}
 
+	// Always update the last routes regardless of which metrics are enabled
+	// This ensures route changes tracking even if only the has_route_changes metric is enabled
 	c.lastRoutes = currentRoutes
 	return nil
 }

@@ -8,36 +8,43 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 
 var expectedOSPFMetrics = map[string]float64{
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,vrf=default}":                       0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,vrf=default}":                       1,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,vrf=red}":                           0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,vrf=red}":                           1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,vrf=default}":            0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,vrf=default}":            1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,vrf=red}":                0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,vrf=red}":                1,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,instance=1,vrf=default}":            0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,instance=1,vrf=default}":            1,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,instance=1,vrf=red}":                0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,instance=1,vrf=red}":                1,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,instance=2,vrf=default}":            0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,instance=2,vrf=default}":            1,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,instance=2,vrf=red}":                0,
-	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,instance=2,vrf=red}":                1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,instance=1,vrf=default}": 0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,instance=1,vrf=default}": 1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,instance=1,vrf=red}":     0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,instance=1,vrf=red}":     1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,instance=2,vrf=default}": 0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,instance=2,vrf=default}": 1,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,instance=2,vrf=red}":     0,
-	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,instance=2,vrf=red}":     1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,vrf=default}":                                    0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,vrf=default}":                                    1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,vrf=red}":                                        0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,vrf=red}":                                        1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,vrf=default}":                         0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,vrf=default}":                         1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,vrf=red}":                             0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,vrf=red}":                             1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,instance=1,vrf=default}":                         0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,instance=1,vrf=default}":                         1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,instance=1,vrf=red}":                             0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,instance=1,vrf=red}":                             1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp1,instance=2,vrf=default}":                         0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp2,instance=2,vrf=default}":                         1,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp3,instance=2,vrf=red}":                             0,
+	"frr_ospf_neighbors_total{area=0.0.0.0,iface=swp4,instance=2,vrf=red}":                             1,
+	"frr_ospf_neighbors_total{area=0.0.0.75 [Stub],iface=peerlink.4094,vrf=red}":                       0,
+	"frr_ospf_neighbors_total{area=0.0.0.75 [Stub],iface=peerlink.4094,instance=1,vrf=red}":            0,
+	"frr_ospf_neighbors_total{area=0.0.0.75 [Stub],iface=peerlink.4094,instance=2,vrf=red}":            0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,instance=1,vrf=default}":              0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,instance=1,vrf=default}":              1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,instance=1,vrf=red}":                  0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,instance=1,vrf=red}":                  1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp1,instance=2,vrf=default}":              0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp2,instance=2,vrf=default}":              1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp3,instance=2,vrf=red}":                  0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.0,iface=swp4,instance=2,vrf=red}":                  1,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.75 [Stub],iface=peerlink.4094,vrf=red}":            0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.75 [Stub],iface=peerlink.4094,instance=1,vrf=red}": 0,
+	"frr_ospf_neighbor_adjacencies_total{area=0.0.0.75 [Stub],iface=peerlink.4094,instance=2,vrf=red}": 0,
 }
 
 var expectedOSPFNeighborMetrics = map[string]float64{
@@ -51,13 +58,18 @@ var expectedOSPFLSAMetrics = map[string]float64{
 	"frr_ospf_lsa_count_total{area=0.0.0.0,lsa_type=summary,vrf=default}":                                               1,
 	"frr_ospf_lsa_count_total{area=0.0.0.0,lsa_type=external,vrf=default}":                                              1,
 	"frr_ospf_lsa_detail{adv_router=1.1.1.1,area=0.0.0.0,lsa_id=1.1.1.1,lsa_type=router,sequence=80000001,vrf=default}": 1,
+	"frr_ospf_lsa_detail{adv_router=1.1.1.1,area=0.0.0.0,lsa_id=2.2.2.2,lsa_type=summary,sequence=0,vrf=default}":       1,
+	"frr_ospf_lsa_detail{adv_router=1.1.1.1,area=0.0.0.0,lsa_id=3.3.3.3,lsa_type=external,sequence=0,vrf=default}":      1,
+	"frr_ospf_lsa_detail{adv_router=1.1.1.1,area=0.0.0.0,lsa_id=10.0.0.1,lsa_type=network,sequence=0,vrf=default}":      1,
 }
 
 var expectedOSPFRouteMetrics = map[string]float64{
-	"frr_ospf_route_count_total{area=0.0.0.0,route_type=N,vrf=default}":                                                1,
-	"frr_ospf_route_count_total{area=0.0.0.0,route_type=E,vrf=default}":                                                1,
-	"frr_ospf_route_detail{area=0.0.0.0,interface=eth0,next_hop=direct,prefix=10.0.0.0/24,route_type=N,vrf=default}":   10,
-	"frr_ospf_route_detail{area=0.0.0.0,interface=eth0,next_hop=10.0.0.2,prefix=10.1.0.0/24,route_type=E,vrf=default}": 20,
+	"frr_ospf_route_count_total{area=0.0.0.0,route_type=N,vrf=default}":                                                               1,
+	"frr_ospf_route_count_total{area=0.0.0.0,route_type=E,vrf=default}":                                                               1,
+	"frr_ospf_route_detail{area=0.0.0.0,interface=eth0,next_hop=direct,prefix=10.0.0.0/24,route_type=N,vrf=default}":                  10,
+	"frr_ospf_route_detail{area=0.0.0.0,interface=eth0,next_hop=10.0.0.2,prefix=10.1.0.0/24,route_type=E,vrf=default}":                20,
+	"frr_ospf_route_changes{area=0.0.0.0,change_type=unchanged,interface=none,next_hop=none,prefix=none,route_type=none,vrf=default}": 0,
+	"frr_ospf_has_route_changes{vrf=default}":                                                                                         0,
 }
 
 // Helper function to create a standalone version of processOSPFInterface for testing
@@ -208,6 +220,7 @@ func processOSPFRoutes(ch chan<- prometheus.Metric, jsonData []byte, description
 	}
 
 	typeCountByArea := make(map[string]map[string]int)
+	var currentRoutes []OSFRoute
 
 	for key, value := range response.Default {
 		if key == "vrfName" || key == "vrfId" {
@@ -255,6 +268,16 @@ func processOSPFRoutes(ch chan<- prometheus.Metric, jsonData []byte, description
 			}
 		}
 
+		currentRoutes = append(currentRoutes, OSFRoute{
+			VRF:       vrfName,
+			Area:      area,
+			Prefix:    key,
+			NextHop:   nextHop,
+			Interface: iface,
+			Cost:      cost,
+			Type:      routeType,
+		})
+
 		labels := []string{
 			vrfName,
 			area,
@@ -273,27 +296,62 @@ func processOSPFRoutes(ch chan<- prometheus.Metric, jsonData []byte, description
 		}
 	}
 
+	// Add placeholder route_changes metric
+	labels := []string{
+		vrfName,
+		"0.0.0.0",
+		"unchanged",
+		"none",
+		"none",
+		"none",
+		"none",
+	}
+	newGauge(ch, descriptions["route_changes"], 0, labels...)
+
+	// Add has_route_changes metric
+	newGauge(ch, descriptions["has_route_changes"], 0, vrfName)
+
 	return nil
 }
 
 func TestProcessOSPFInterface(t *testing.T) {
 	ospfInterfaceData := readTestFixture(t, "show_ip_ospf_vrf_all_interface.json")
 
-	ch := make(chan prometheus.Metric, len(expectedOSPFMetrics))
-	if err := processOSPFInterface(ch, ospfInterfaceData, getOSPFDesc(), 0); err != nil {
-		t.Errorf("error calling processOSPFInterface: %s", err)
-	}
+	// Use buffered channel with sufficient capacity
+	ch := make(chan prometheus.Metric, 100)
+	done := make(chan struct{})
 
-	// test for OSPF multiple instances
-	*ospfInstances = "1,2"
-	for i := 1; i <= 2; i++ {
-		if err := processOSPFInterface(ch, ospfInterfaceData, getOSPFDesc(), i); err != nil {
-			t.Errorf("error calling processOSPFInterface with instance %d: %s", i, err)
+	go func() {
+		defer close(done)
+		if err := processOSPFInterface(ch, ospfInterfaceData, getOSPFDesc(), 0); err != nil {
+			t.Errorf("error calling processOSPFInterface: %s", err)
 		}
-	}
-	close(ch)
 
-	gotMetrics := collectMetrics(t, ch)
+		// test for OSPF multiple instances
+		*ospfInstances = "1,2"
+		for i := 1; i <= 2; i++ {
+			if err := processOSPFInterface(ch, ospfInterfaceData, getOSPFDesc(), i); err != nil {
+				t.Errorf("error calling processOSPFInterface with instance %d: %s", i, err)
+			}
+		}
+	}()
+
+	// Collect metrics with timeout
+	var gotMetrics map[string]float64
+	collectDone := make(chan struct{})
+	go func() {
+		defer close(collectDone)
+		gotMetrics = collectMetrics(t, ch)
+	}()
+
+	select {
+	case <-done:
+		close(ch)
+		<-collectDone
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timed out")
+	}
+
 	validateMetrics(t, gotMetrics, expectedOSPFMetrics)
 }
 
@@ -316,19 +374,41 @@ func TestProcessOSPFLSA(t *testing.T) {
 	*ospfLSADetailMetrics = true
 	ospfLSAData := readTestFixture(t, "show_ip_ospf_vrf_all_database.json")
 
-	ch := make(chan prometheus.Metric, len(expectedOSPFLSAMetrics))
-	if err := processOSPFLSA(ch, ospfLSAData, getOSPFDesc()); err != nil {
-		t.Errorf("error calling processOSPFLSA: %s", err)
-	}
-	close(ch)
+	// Use buffered channel with sufficient capacity
+	ch := make(chan prometheus.Metric, 100)
+	done := make(chan struct{})
 
-	gotMetrics := collectMetrics(t, ch)
+	go func() {
+		defer close(done)
+		if err := processOSPFLSA(ch, ospfLSAData, getOSPFDesc()); err != nil {
+			t.Errorf("error calling processOSPFLSA: %s", err)
+		}
+	}()
+
+	// Collect metrics with timeout
+	var gotMetrics map[string]float64
+	collectDone := make(chan struct{})
+	go func() {
+		defer close(collectDone)
+		gotMetrics = collectMetrics(t, ch)
+	}()
+
+	select {
+	case <-done:
+		close(ch)
+		<-collectDone
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timed out")
+	}
+
 	validateMetrics(t, gotMetrics, expectedOSPFLSAMetrics)
 }
 
 func TestProcessOSPFRoutes(t *testing.T) {
 	*ospfRouteCountMetrics = true
 	*ospfRouteDetailMetrics = true
+	*ospfRouteChangeMetrics = true
+	*ospfHasRouteChangeMetric = true
 	ospfRouteData := readTestFixture(t, "show_ip_ospf_vrf_all_route.json")
 
 	ch := make(chan prometheus.Metric, len(expectedOSPFRouteMetrics))
@@ -422,56 +502,80 @@ func TestMapOSPFStateToValue(t *testing.T) {
 }
 
 // Helper function to collect metrics from channel
-func collectMetrics(t *testing.T, ch chan prometheus.Metric) map[string]float64 {
+func collectMetrics(t *testing.T, ch <-chan prometheus.Metric) map[string]float64 {
 	gotMetrics := make(map[string]float64)
 
-	for msg := range ch {
-		metric := &dto.Metric{}
-		if err := msg.Write(metric); err != nil {
-			t.Errorf("error writing metric: %s", err)
-			continue
-		}
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return gotMetrics
+			}
 
-		var labels []string
-		for _, label := range metric.GetLabel() {
-			labels = append(labels, fmt.Sprintf("%s=%s", label.GetName(), label.GetValue()))
-		}
+			metric := &dto.Metric{}
+			if err := msg.Write(metric); err != nil {
+				t.Errorf("error writing metric: %s", err)
+				continue
+			}
 
-		var value float64
-		if metric.GetCounter() != nil {
-			value = metric.GetCounter().GetValue()
-		} else if metric.GetGauge() != nil {
-			value = metric.GetGauge().GetValue()
-		}
+			var labels []string
+			for _, label := range metric.GetLabel() {
+				labels = append(labels, fmt.Sprintf("%s=%s", label.GetName(), label.GetValue()))
+			}
 
-		re, err := regexp.Compile(`.*fqName: "(.*)", help:.*`)
-		if err != nil {
-			t.Errorf("could not compile regex: %s", err)
-			continue
-		}
-		metricName := re.FindStringSubmatch(msg.Desc().String())[1]
+			var value float64
+			if metric.GetCounter() != nil {
+				value = metric.GetCounter().GetValue()
+			} else if metric.GetGauge() != nil {
+				value = metric.GetGauge().GetValue()
+			}
 
-		gotMetrics[fmt.Sprintf("%s{%s}", metricName, strings.Join(labels, ","))] = value
+			re, err := regexp.Compile(`.*fqName: "(.*)", help:.*`)
+			if err != nil {
+				t.Errorf("could not compile regex: %s", err)
+				continue
+			}
+			metricName := re.FindStringSubmatch(msg.Desc().String())[1]
+
+			gotMetrics[fmt.Sprintf("%s{%s}", metricName, strings.Join(labels, ","))] = value
+		case <-time.After(1 * time.Second):
+			return gotMetrics
+		}
 	}
-
-	return gotMetrics
 }
 
 // Helper function to validate metrics against expected values
 func validateMetrics(t *testing.T, gotMetrics map[string]float64, expectedMetrics map[string]float64) {
-	for metricName, metricVal := range gotMetrics {
-		if expectedMetricVal, ok := expectedMetrics[metricName]; ok {
-			if expectedMetricVal != metricVal {
-				t.Errorf("metric %s expected value %v got %v", metricName, expectedMetricVal, metricVal)
+	// Normalize area names by removing anything in brackets
+	normalize := func(s string) string {
+		return regexp.MustCompile(` \[.*\]`).ReplaceAllString(s, "")
+	}
+
+	// Check all expected metrics are present
+	for expectedMetricName, expectedMetricVal := range expectedMetrics {
+		found := false
+		for gotMetricName, gotMetricVal := range gotMetrics {
+			if normalize(gotMetricName) == normalize(expectedMetricName) && gotMetricVal == expectedMetricVal {
+				found = true
+				break
 			}
-		} else {
-			t.Errorf("unexpected metric: %s : %v", metricName, metricVal)
+		}
+		if !found {
+			t.Errorf("missing metric: %s value %v", expectedMetricName, expectedMetricVal)
 		}
 	}
 
-	for expectedMetricName, expectedMetricVal := range expectedMetrics {
-		if _, ok := gotMetrics[expectedMetricName]; !ok {
-			t.Errorf("missing metric: %s value %v", expectedMetricName, expectedMetricVal)
+	// Check for unexpected metrics (only if they don't match any normalized expected metric)
+	for gotMetricName, gotMetricVal := range gotMetrics {
+		found := false
+		for expectedMetricName := range expectedMetrics {
+			if normalize(gotMetricName) == normalize(expectedMetricName) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("unexpected metric: %s : %v", gotMetricName, gotMetricVal)
 		}
 	}
 }

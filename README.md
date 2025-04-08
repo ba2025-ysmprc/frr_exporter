@@ -55,6 +55,8 @@ Flags:
                                  Enable detailed OSPF route information metrics (default: disabled).
       --[no-]collector.ospf.route-changes
                                  Enable OSPF route change tracking metrics (default: disabled).
+      --[no-]collector.ospf.has-route-changes
+                                 Enable OSPF show if there are route changes (default: disabled).
       --frr.socket.dir-path="/var/run/frr"
                                  Path of of the localstatedir containing each daemon's Unix socket.
       --frr.socket.timeout=20s   Timeout when connecting to the FRR daemon Unix sockets
@@ -259,28 +261,11 @@ Enable comprehensive OSPF monitoring with these additional metrics:
 - `frr_ospf_route_count_total{route_type="N|E", vrf="<name>", area="<id>"}` - Count of routes by type
 - `frr_ospf_route_detail` - Detailed route information with cost metrics
 - `frr_ospf_route_changes{change_type="added|removed", vrf="<name>", area="<id>"}` - Route change tracking
+- `frr_ospf_has_route_changes` - Shows if there where any route changes without information about it
 
 **LSA Metrics** (disabled by default):
 - `frr_ospf_lsa_count_total{lsa_type="router|network|summary|external"}`
 - `frr_ospf_lsa_detail` - Per-LSA details including age, sequence, and checksum
-
-Configure with:
-```sh
-# Enable interface metrics
---collector.ospf.interfaces
-
-# Enable neighbor state metrics
---collector.ospf.neighbor-states
-
-# Enable route tracking metrics
---collector.ospf.route-changes
---collector.ospf.route-count
---collector.ospf.route-detail
-
-# Enable LSA metrics
---collector.ospf.lsa-count
---collector.ospf.lsa-detail
-```
 
 ## Grafana Dashboards
 
