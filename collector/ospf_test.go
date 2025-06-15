@@ -48,8 +48,8 @@ var expectedOSPFMetrics = map[string]float64{
 }
 
 var expectedOSPFNeighborMetrics = map[string]float64{
-	"frr_ospf_neighbor_state{area=0.0.0.0,iface=eth0,neighbor_id=10.0.0.2,neighbor_ip=10.0.0.1,vrf=default}": 1, // Full
-	"frr_ospf_neighbor_state{area=0.0.0.1,iface=eth1,neighbor_id=10.0.1.3,neighbor_ip=10.0.1.1,vrf=default}": 5, // 2Way
+	"frr_ospf_neighbor_state{area=0.0.0.0,iface=eth0,instance=10.0.0.2,neighbor_id=10.0.0.1,neighbor_ip=0,vrf=default}": 1, // Full
+	"frr_ospf_neighbor_state{area=0.0.0.1,iface=eth1,instance=10.0.1.3,neighbor_id=10.0.1.1,neighbor_ip=0,vrf=default}": 5, // 2Way
 }
 
 var expectedOSPFLSAMetrics = map[string]float64{
